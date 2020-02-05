@@ -16,6 +16,7 @@
 package org.springframework.data.mongodb.core.mapping;
 
 import org.springframework.data.mapping.PersistentEntity;
+import org.springframework.data.mongodb.mapping.ShardKey;
 import org.springframework.lang.Nullable;
 
 /**
@@ -75,6 +76,21 @@ public interface MongoPersistentEntity<T> extends PersistentEntity<T, MongoPersi
 	 */
 	default boolean hasCollation() {
 		return getCollation() != null;
+	}
+
+	/**
+	 * @return
+	 * @since 3.0
+	 */
+	@Nullable
+	ShardKey getShardKey();
+
+	/**
+	 * @return
+	 * @since 3.0
+	 */
+	default boolean isSharded() {
+		return getShardKey() != null;
 	}
 
 }

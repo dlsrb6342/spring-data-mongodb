@@ -28,6 +28,7 @@ import org.springframework.data.mapping.MappingException;
 import org.springframework.data.mapping.PropertyHandler;
 import org.springframework.data.mapping.model.BasicPersistentEntity;
 import org.springframework.data.mongodb.MongoCollectionUtils;
+import org.springframework.data.mongodb.mapping.ShardKey;
 import org.springframework.data.util.TypeInformation;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
@@ -63,6 +64,8 @@ public class BasicMongoPersistentEntity<T> extends BasicPersistentEntity<T, Mong
 	private final @Nullable String collation;
 	private final @Nullable Expression collationExpression;
 
+	private final @Nullable ShardKey shardKey;
+
 	/**
 	 * Creates a new {@link BasicMongoPersistentEntity} with the given {@link TypeInformation}. Will default the
 	 * collection name to the entities simple type name.
@@ -92,6 +95,8 @@ public class BasicMongoPersistentEntity<T> extends BasicPersistentEntity<T, Mong
 			this.collation = null;
 			this.collationExpression = null;
 		}
+
+		this.shardKey = detectShardKey(this);
 	}
 
 	/*
@@ -158,6 +163,12 @@ public class BasicMongoPersistentEntity<T> extends BasicPersistentEntity<T, Mong
 		return StringUtils.hasText(collationValue.toString())
 				? org.springframework.data.mongodb.core.query.Collation.parse(collationValue.toString())
 				: null;
+	}
+
+	@Nullable
+	@Override
+	public ShardKey getShardKey() {
+		return shardKey;
 	}
 
 	/*
@@ -295,6 +306,15 @@ public class BasicMongoPersistentEntity<T> extends BasicPersistentEntity<T, Mong
 
 		Expression expression = PARSER.parseExpression(potentialExpression, ParserContext.TEMPLATE_EXPRESSION);
 		return expression instanceof LiteralExpression ? null : expression;
+	}
+
+	private static ShardKey detectShardKey(BasicMongoPersistentEntity<?> entity) {
+
+		if (!entity.isAnnotationPresent(Sharded.class)) {
+			return null;
+		}
+
+		return ShardKey.of(entity.getRequiredAnnotation(Sharded.class).shardKey());
 	}
 
 	/**

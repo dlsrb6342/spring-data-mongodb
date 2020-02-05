@@ -93,4 +93,22 @@ public interface MongoPersistentEntity<T> extends PersistentEntity<T, MongoPersi
 		return getShardKey() != null;
 	}
 
+	default boolean idPropertyIsShardKey() {
+		return isIdProperty(getShardKey());
+	}
+
+	default boolean isIdProperty(ShardKey shardKey) {
+
+		if(shardKey == null || shardKey.size() != 1) {
+			return false;
+		}
+
+		String key = shardKey.getFields().iterator().next();
+		if("_id".equals(key)) {
+			return true;
+		}
+		MongoPersistentProperty idProperty = getIdProperty();
+		return idProperty != null && idProperty.getName().equals(key);
+	}
+
 }

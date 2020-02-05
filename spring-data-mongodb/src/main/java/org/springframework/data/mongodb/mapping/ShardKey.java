@@ -15,30 +15,48 @@
  */
 package org.springframework.data.mongodb.mapping;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.bson.Document;
 
 /**
  * @author Christoph Strobl
  * @since 3.0
  */
-public interface ShardKey {
+public class ShardKey {
 
-	ShardKey NONE = Document::new;
+	private static final ShardKey NONE = new ShardKey(Collections.emptyList());
+	private final List<String> fields;
 
-	Document getDocument();
+	private ShardKey(List<String> fields) {
+		this.fields = fields;
+	}
 
-	static ShardKey none() {
+	public Document getDocument() {
+		Document doc = new Document();
+		for (String field : fields) {
+			doc.append(field, 1);
+		}
+		return doc;
+	}
+
+	public int size() {
+		return fields.size();
+	}
+
+	public Collection<String> getFields() {
+		return fields;
+	}
+
+	public static ShardKey none() {
 		return NONE;
 	}
 
-	static ShardKey of(String... fields) {
-		return () -> {
-
-			Document doc = new Document();
-			for (String field : fields) {
-				doc.append(field, 1);
-			}
-			return doc;
-		};
+	public static ShardKey of(String... fields) {
+		return new ShardKey(Arrays.asList(fields));
 	}
 }

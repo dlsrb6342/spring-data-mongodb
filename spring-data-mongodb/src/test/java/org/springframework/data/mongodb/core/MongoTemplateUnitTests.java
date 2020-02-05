@@ -19,7 +19,6 @@ import static org.mockito.Mockito.*;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.*;
 import static org.springframework.data.mongodb.test.util.Assertions.*;
 
-import com.mongodb.MongoClientSettings;
 import lombok.Data;
 
 import java.math.BigInteger;
@@ -97,6 +96,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.CollectionUtils;
 
+import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
 import com.mongodb.MongoNamespace;
 import com.mongodb.ReadPreference;
@@ -164,7 +164,8 @@ public class MongoTemplateUnitTests extends MongoOperationsUnitTests {
 		when(db.runCommand(any(), any(Class.class))).thenReturn(commandResultDocument);
 		when(collection.find(any(org.bson.Document.class), any(Class.class))).thenReturn(findIterable);
 		when(collection.mapReduce(any(), any(), eq(Document.class))).thenReturn(mapReduceIterable);
-		when(collection.countDocuments(any(Bson.class), any(CountOptions.class))).thenReturn(1L); // TODO: MongoDB 4 - fix me
+		when(collection.countDocuments(any(Bson.class), any(CountOptions.class))).thenReturn(1L); // TODO: MongoDB 4 - fix
+																																															// me
 		when(collection.getNamespace()).thenReturn(new MongoNamespace("db.mock-collection"));
 		when(collection.aggregate(any(List.class), any())).thenReturn(aggregateIterable);
 		when(collection.withReadPreference(any())).thenReturn(collection);
@@ -1825,6 +1826,79 @@ public class MongoTemplateUnitTests extends MongoOperationsUnitTests {
 		verify(collection, times(1)).updateOne(any(org.bson.Document.class), captor.capture(), any(UpdateOptions.class));
 
 		assertThat(captor.getValue()).isEqualTo(Collections.singletonList(Document.parse("{ $unset : \"firstname\" }")));
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveShouldAppendNonDefaultShardKeyIfNotPresentInFilter() {
+
+		template.save(new ShardedEntityWithNonDefaultShardKey("id-1", "AT", 4230));
+
+		ArgumentCaptor<Bson> filter = ArgumentCaptor.forClass(Bson.class);
+		verify(collection).replaceOne(filter.capture(), any(), any());
+
+		assertThat(filter.getValue()).isEqualTo(new Document("_id", "id-1").append("country", "AT").append("userid", 4230));
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveShouldAppendNonDefaultShardKeyToVersionedEntityIfNotPresentInFilter() {
+
+		when(collection.replaceOne(any(), any(), any(ReplaceOptions.class))).thenReturn(UpdateResult.acknowledged(1, 1L, null));
+
+		template.save(new ShardedVersionedEntityWithNonDefaultShardKey("id-1", 1L, "AT", 4230));
+
+		ArgumentCaptor<Bson> filter = ArgumentCaptor.forClass(Bson.class);
+		verify(collection).replaceOne(filter.capture(), any(), any());
+
+		assertThat(filter.getValue()).isEqualTo(new Document("_id", "id-1").append("version", 1L).append("country", "AT").append("userid", 4230));
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveShouldAppendNonDefaultShardKeyFromExistingDocumentIfNotPresentInFilter() {
+
+		when(findIterable.first()).thenReturn(new Document("_id", "id-1").append("country", "US").append("userid", 4230));
+
+		template.save(new ShardedEntityWithNonDefaultShardKey("id-1", "AT", 4230));
+
+		ArgumentCaptor<Bson> filter = ArgumentCaptor.forClass(Bson.class);
+		ArgumentCaptor<Document> replacement = ArgumentCaptor.forClass(Document.class);
+
+		verify(collection).replaceOne(filter.capture(), replacement.capture(), any());
+
+		assertThat(filter.getValue()).isEqualTo(new Document("_id", "id-1").append("country", "US").append("userid", 4230));
+		assertThat(replacement.getValue()).containsEntry("country", "AT").containsEntry("userid", 4230);
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveShouldAppendDefaultShardKeyIfNotPresentInFilter() {
+
+		template.save(new ShardedEntityWithDefaultShardKey("id-1", "AT", 4230));
+
+		ArgumentCaptor<Bson> filter = ArgumentCaptor.forClass(Bson.class);
+		verify(collection).replaceOne(filter.capture(), any(), any());
+
+		assertThat(filter.getValue()).isEqualTo(new Document("_id", "id-1"));
+		verify(findIterable, never()).first();
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveShouldProjectOnShardKeyWhenLoadingExistingDocument() {
+
+		when(findIterable.first()).thenReturn(new Document("_id", "id-1").append("country", "US").append("userid", 4230));
+
+		template.save(new ShardedEntityWithNonDefaultShardKey("id-1", "AT", 4230));
+
+		verify(findIterable).projection(new Document("country", 1).append("userid", 1));
+	}
+
+	@Test // DATAMONGO-2341
+	public void saveVersionedShouldProjectOnShardKeyWhenLoadingExistingDocument() {
+
+		when(collection.replaceOne(any(), any(), any(ReplaceOptions.class))).thenReturn(UpdateResult.acknowledged(1, 1L, null));
+		when(findIterable.first()).thenReturn(new Document("_id", "id-1").append("country", "US").append("userid", 4230));
+
+		template.save(new ShardedVersionedEntityWithNonDefaultShardKey("id-1", 1L, "AT", 4230));
+
+		verify(findIterable).projection(new Document("country", 1).append("userid", 1));
 	}
 
 	class AutogenerateableId {

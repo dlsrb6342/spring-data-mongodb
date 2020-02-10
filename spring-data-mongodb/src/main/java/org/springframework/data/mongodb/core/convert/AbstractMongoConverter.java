@@ -128,6 +128,7 @@ public abstract class AbstractMongoConverter implements MongoConverter, Initiali
 	/* (non-Javadoc)
 	 * @see org.springframework.beans.factory.InitializingBean#afterPropertiesSet()
 	 */
+	@Override
 	public void afterPropertiesSet() {
 		initializeConverters();
 	}
